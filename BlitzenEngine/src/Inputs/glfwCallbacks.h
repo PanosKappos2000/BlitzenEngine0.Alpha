@@ -10,7 +10,8 @@ struct WindowData
         int windowHeight = 620;
         const char* windowTitle = "Blitzen 0Alpha";
         bool bEngineShouldTerminate = false;
-        bool bRendererShouldWait = false;
+        bool bResizeRequested = false;
+        bool bPauseRendering = false;
     };
 
 namespace BlitzenEngine

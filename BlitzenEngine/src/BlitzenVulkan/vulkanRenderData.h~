@@ -68,6 +68,7 @@ namespace BlitzenRendering
     struct GPUPushConstant
     {
         glm::mat4 worldMatrix;
+        VkDeviceAddress vertexBuffer;
     };
 
     //Used to store all the different pipelines used by the different materials of the engine objects
@@ -97,7 +98,6 @@ namespace BlitzenRendering
     {
         uint32_t indexCount;
         uint32_t firstIndex;
-        uint32_t vertexBufferOffset;
 
         MaterialInstance* pMaterial;
     };
@@ -105,6 +105,7 @@ namespace BlitzenRendering
     //Holds a loaded mesh asset and the mesh buffers need to draw it
     struct VulkanMeshAsset
     {
+        VulkanGPUMeshBuffers meshBuffers;
         std::vector<GeoSurface> geoSurfaces;
 
         std::string meshName;
@@ -118,7 +119,6 @@ namespace BlitzenRendering
         glm::vec4 ambientColor;
         glm::vec4 sunlightColor;
         glm::vec4 sunlightDirection;
-        VkDeviceAddress vertexBufferAddress;
     };
 
     struct MaterialConstants 
@@ -167,12 +167,16 @@ namespace BlitzenRendering
         uint32_t firstIndex;
         uint32_t indexCount;
 
+        //The index buffer to be bound
+        VkBuffer* pIndexBuffer{nullptr};
+
         //The material used by the surface, will be used to bind the pipeline and the descriptor sets
         MaterialInstance* pMaterial{nullptr};
 
         //The model matrix of the render object, to be given to the push constant
         glm::mat4 transform{1.0f};
-        uint32_t vertexBufferOffset;
+        //The address of the vertex buffer that holds the vertices of the surface
+        VkDeviceAddress vertexBufferAddress;
     };
 
     struct DrawContext

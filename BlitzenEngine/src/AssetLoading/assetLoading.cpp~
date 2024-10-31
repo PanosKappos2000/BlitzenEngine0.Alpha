@@ -3,7 +3,7 @@
 namespace BlitzenEngine
 {
     void LoadMeshAsset(std::filesystem::path filepath, std::vector<BlitzenRendering::VulkanVertex>& vertices,
-		    std::vector<uint32_t>& indices, BlitzenRendering::VulkanRenderer* pVulkan)
+		    std::vector<uint32_t>& indices, VulkanRenderer* pVulkan)
     {
         std::cout << "Loading GLTF: " << filepath << '\n';
 
@@ -41,7 +41,6 @@ namespace BlitzenEngine
                 BlitzenRendering::GeoSurface newSurface;
                 newSurface.firstIndex = indices.size();
                 newSurface.indexCount = gltf.accessors[primitive.indicesAccessor.value()].count;
-                newSurface.vertexBufferOffset = vertices.size();
                 pVulkan->m_assets[i].geoSurfaces.push_back(newSurface);
 
                 size_t initialVertex = vertices.size();

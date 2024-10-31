@@ -5,6 +5,7 @@ layout(set = 0, binding = 0) uniform SceneData
 	vec4 ambientColor;
 	vec4 sunlightDirection;
 	vec4 sunlightColor;
+	VertexBuffer vertexBuffer;
 }sceneData;
 
 layout(set = 1, binding = 0) uniform MaterialData

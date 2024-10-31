@@ -291,7 +291,7 @@ namespace BlitzenRendering
         GPUSceneData m_globalSceneData;
         VkDescriptorSetLayout m_globalSceneDataDescriptorSetLayout{VK_NULL_HANDLE};
 
-	VulkanGPUMeshBuffers m_meshBuffers;
+	GPUMeshBuffers m_meshBuffers;
 
         DrawContext m_mainDrawContext;
         std::unordered_map<std::string, Node> m_nodeTable;

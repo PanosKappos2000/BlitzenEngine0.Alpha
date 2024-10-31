@@ -33,10 +33,9 @@ namespace BlitzenRendering
                     VulkanRenderObject& newObject = drawContext.opaqueObjects.back();
                     newObject.firstIndex = surface.firstIndex;
                     newObject.indexCount = surface.indexCount;
-                    newObject.pIndexBuffer = &(m_asset->meshBuffers.indexBuffer.buffer);
                     newObject.pMaterial = surface.pMaterial;
                     newObject.transform = nodeMatrix;
-                    newObject.vertexBufferAddress = m_asset->meshBuffers.vertexBufferAddress;
+                    newObject.vertexBufferOffset = surface.vertexBufferOffset;
                 }
                 break;
 
@@ -54,10 +53,9 @@ namespace BlitzenRendering
             VulkanRenderObject& newObject = drawContext.opaqueObjects.back();
             newObject.firstIndex = surface.firstIndex;
             newObject.indexCount = surface.indexCount;
-            newObject.pIndexBuffer = &(m_asset->meshBuffers.indexBuffer.buffer);
             newObject.pMaterial = surface.pMaterial;
             newObject.transform = nodeMatrix;
-            newObject.vertexBufferAddress = m_asset->meshBuffers.vertexBufferAddress;
+            newObject.vertexBufferOffset = surface.vertexBufferOffset;
         }
 
         Node::AddToDrawContext(topMatrix, drawContext);

@@ -13,16 +13,16 @@ namespace BlitzenEngine
         //Initialize the renderer, only Vulkan is supported for now
         m_vulkan.Init(&m_windowData);
 	
-    	/*---------------------------------------------------------------------------------------
-    	Declaring two vectors, one for the vertex data and one for the index data
-    	The LoadMeshAsset function will go through all the meshes that need to be loaded
-    	It will the indices and vertices and give the necessary data to acces them to the objects
-    	Then vulkan will allocate two big buffers one for the vertices and one for the indices
-    	-----------------------------------------------------------------------------------------*/
-    	std::vector<BlitzenRendering::VulkanVertex> vertices;
-    	std::vector<uint32_t> indices;
-        LoadMeshAsset("BlitzenEngine/Assets/basicmesh.glb", vertices, indices, &m_vulkan);
-    	m_vulkan.LoadMeshBuffers(vertices, indices);
+	/*---------------------------------------------------------------------------------------
+	Declaring two vectors, one for the vertex data and one for the index data
+	The LoadMeshAsset function will go through all the meshes that need to be loaded
+	It will the indices and vertices and give the necessary data to acces them to the objects
+	Then vulkan will allocate two big buffers one for the vertices and one for the indices
+	-----------------------------------------------------------------------------------------*/
+	std::vector<BlitzenRendering::VulkanVertex> vertices;
+	std::vector<uint32_t> indices;
+        LoadMeshAsset("BlitzenEngine/Assets/basicmesh.glb", vertices, indices);
+	m_vulkan.LoadMeshBuffers(vertices, indices);
 
         m_vulkan.InitPlaceholderData();
     }
@@ -74,8 +74,5 @@ namespace BlitzenEngine
 
         //Setting the function that gets called when user input tells the window to close
         glfwSetWindowCloseCallback(m_windowData.pWindow, glfwWindowCloseCallback);
-
-        //Setting the function that gets called when user input asks for resize
-        glfwSetWindowSizeCallback(m_windowData.pWindow, glfwWindowSizeCallback);
     }
 }

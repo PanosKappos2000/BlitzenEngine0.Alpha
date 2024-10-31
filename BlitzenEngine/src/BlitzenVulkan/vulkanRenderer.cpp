@@ -314,7 +314,7 @@ namespace BlitzenRendering
 
 
 
-    void VulkanRenderer::LoadMeshBuffers(VulkanGPUMeshBuffers& meshBuffers, std::vector<VulkanVertex>& vertices, 
+    void VulkanRenderer::LoadMeshBuffers(std::vector<VulkanVertex>& vertices, 
         std::vector<uint32_t>& indices)
     {
         VkDeviceSize vertexBufferSize = sizeof(VulkanVertex) * vertices.size();
@@ -322,12 +322,12 @@ namespace BlitzenRendering
         Create the vertex buffer as an SSBO (that will accept a transfer from a staging buffer), 
         its memory will only be accessed by the GPU but shaders will have access
         -----------------------------------------------------------------------------------------*/
-        AllocateBuffer(meshBuffers.vertexBuffer, vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | 
+        AllocateBuffer(m_meshBuffers.vertexBuffer, vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | 
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
         VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
         //The index buffer will have the index buffer bit and will also accept a memory transfer
-        AllocateBuffer(meshBuffers.indexBuffer, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | 
+        AllocateBuffer(m_meshBuffers.indexBuffer, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | 
         VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
         /*---------------------------------------------------------------------------------------------------
@@ -336,8 +336,8 @@ namespace BlitzenRendering
         ----------------------------------------------------------------------------------------------------*/
         VkBufferDeviceAddressInfo vertexBufferAddressInfo{};
         vertexBufferAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        vertexBufferAddressInfo.buffer = meshBuffers.vertexBuffer.buffer;
-        meshBuffers.vertexBufferAddress = vkGetBufferDeviceAddress(m_device, &vertexBufferAddressInfo);
+        vertexBufferAddressInfo.buffer = m_meshBuffers.vertexBuffer.buffer;
+        m_meshBuffers.vertexBufferAddress = vkGetBufferDeviceAddress(m_device, &vertexBufferAddressInfo);
 
         //The buffers have been created, now the data needs to be passed to their gpu memory using a staging buffer
         VulkanAllocatedBuffer stagingBuffer;
@@ -360,7 +360,7 @@ namespace BlitzenRendering
         vertexBufferCopyRegion.dstOffset = 0;
         vertexBufferCopyRegion.srcOffset = 0;
         vertexBufferCopyRegion.size = vertexBufferSize;
-        vkCmdCopyBuffer(m_instantSubmit.commandBuffer, stagingBuffer.buffer, meshBuffers.vertexBuffer.buffer, 1, 
+        vkCmdCopyBuffer(m_instantSubmit.commandBuffer, stagingBuffer.buffer, m_meshBuffers.vertexBuffer.buffer, 1, 
         &vertexBufferCopyRegion);
 
         //Copy the indices into the index buffer
@@ -368,7 +368,7 @@ namespace BlitzenRendering
         indexBufferCopyRegion.dstOffset = 0;
         indexBufferCopyRegion.srcOffset = vertexBufferSize;
         indexBufferCopyRegion.size = indexBufferSize;
-        vkCmdCopyBuffer(m_instantSubmit.commandBuffer, stagingBuffer.buffer, meshBuffers.indexBuffer.buffer, 1, 
+        vkCmdCopyBuffer(m_instantSubmit.commandBuffer, stagingBuffer.buffer, m_meshBuffers.indexBuffer.buffer, 1, 
         &indexBufferCopyRegion);
 
         //Submit the commands
@@ -682,9 +682,31 @@ namespace BlitzenRendering
 
     void VulkanRenderer::DrawFrame()
     {
-        if(m_pWindowData->bRendererShouldWait)
+        /*//If an event causes rendering to be undesirable, Vulkan waits
+        while (m_pWindowData->bPauseRendering)
         {
+            vkDeviceWaitIdle(m_device);
+        }*/ //This will have to wait for now as there are some undefined behavior happening
 
+        //Check if the user requested the main window to resize
+        if(m_pWindowData->bResizeRequested)
+        {
+            //Wait for the previous frame to finish
+            vkDeviceWaitIdle(m_device);
+
+            //Destroy all swapchain objects that need to be manually destroyed
+            for (size_t i = 0; i < m_bootstrapObjects.swapchainData.swapchainImageViews.size(); ++i)
+            {
+                vkDestroyImageView(m_device, m_bootstrapObjects.swapchainData.swapchainImageViews[i],
+                    nullptr);
+            }
+            vkDestroySwapchainKHR(m_device, m_bootstrapObjects.swapchainData.swapchain, nullptr);
+
+            //Create the swapchain once more
+            BootstrapCreateSwapchain();
+
+            //Update the engine and the window that the window resize request has been dealt with
+            m_pWindowData->bResizeRequested = false;
         }
 
         UpdateScene();
@@ -736,6 +758,14 @@ namespace BlitzenRendering
     void VulkanRenderer::UpdateScene()
     {
         m_mainDrawContext.opaqueObjects.clear();
+
+        for (int x = -3; x < 3; ++x) 
+        {
+		    glm::mat4 scale = glm::scale(glm::vec3{0.2});
+		    glm::mat4 translation =  glm::translate(glm::vec3{x, 1, -2.0f});
+		    m_nodeTable["Sphere"].AddToDrawContext(translation * scale, m_mainDrawContext);
+	    }
+
         m_nodeTable["Suzanne"].AddToDrawContext(glm::mat4(1.f), m_mainDrawContext);
 
         //Setup the view matrix
@@ -752,6 +782,8 @@ namespace BlitzenRendering
 	    m_globalSceneData.ambientColor = glm::vec4(.1f);
 	    m_globalSceneData.sunlightColor = glm::vec4(1.f);
 	    m_globalSceneData.sunlightDirection = glm::vec4(0,1,0.5,1.f);
+
+        m_globalSceneData.vertexBufferAddress = m_meshBuffers.vertexBufferAddress;
     }
 
     void VulkanRenderer::StartRecordingFrameCommands(const VkCommandBuffer& commandBuffer, 
@@ -767,8 +799,10 @@ namespace BlitzenRendering
         DrawBackground(commandBuffer);
 
         //Before rendering geometry the draw extent needs to be set to the size of the window
-        m_drawExtent.width = m_pWindowData->windowWidth;
-        m_drawExtent.height = m_pWindowData->windowHeight;
+        m_drawExtent.width = std::min(static_cast<uint32_t>(m_pWindowData->windowWidth), 
+            m_colorAttachmentImage.extent.width);
+        m_drawExtent.height = std::min(static_cast<uint32_t>(m_pWindowData->windowHeight), 
+            m_colorAttachmentImage.extent.height);
 
         //Change the color attachment's layout so that it fits the next function's needs
         ChangeImageLayout(commandBuffer, m_colorAttachmentImage.image, VK_IMAGE_LAYOUT_GENERAL, 
@@ -859,6 +893,7 @@ namespace BlitzenRendering
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_placeholderMaterial.pPipeline->graphicsPipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
         m_placeholderMaterialData.opaquePipeline.pipelineLayout, 0, 1, &sceneDataDescriptorSet, 0, nullptr);
+        vkCmdBindIndexBuffer(commandBuffer, m_meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
         //Since this pipeline has a dynamic viewport and scissor, it has to be set at draw time
         VkViewport viewport = {};
@@ -882,10 +917,7 @@ namespace BlitzenRendering
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_mainDrawContext.opaqueObjects[i].pMaterial->pPipeline->graphicsPipeline);
 
-            vkCmdBindIndexBuffer(commandBuffer, *(m_mainDrawContext.opaqueObjects[i].pIndexBuffer), 0, VK_INDEX_TYPE_UINT32);
-
             GPUPushConstant pushConstants;
-            pushConstants.vertexBuffer = m_mainDrawContext.opaqueObjects[i].vertexBufferAddress;
             pushConstants.worldMatrix = m_mainDrawContext.opaqueObjects[i].transform;
             vkCmdPushConstants(commandBuffer, m_mainDrawContext.opaqueObjects[i].pMaterial->pPipeline->pipelineLayout, 
             VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUPushConstant), &pushConstants);
@@ -971,10 +1003,7 @@ namespace BlitzenRendering
     {
         vkDeviceWaitIdle(m_device);
 
-        for(size_t i = 0; i < m_assets.size(); ++i)
-        {
-            m_assets[i].meshBuffers.CleanupResources(m_device, m_allocator);
-        }
+        m_meshBuffers.CleanupResources(m_device, m_allocator);
 
         m_placeholderMaterialData.CleanupResources(m_device);
         vkDestroyPipeline(m_device, m_placeholderPipeline, nullptr);
