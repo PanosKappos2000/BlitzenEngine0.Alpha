@@ -680,14 +680,36 @@ namespace BlitzenRendering
 
 
 
-    void VulkanRenderer::DrawFrame()
+    void VulkanRenderer::DrawFrame(VulkanUpdatedData& updatedData)
     {
-        if(m_pWindowData->bRendererShouldWait)
+        /*//If an event causes rendering to be undesirable, Vulkan waits
+        while (m_pWindowData->bPauseRendering)
         {
-
+            vkDeviceWaitIdle(m_device);
+        }*/ //This will have to wait for now as there are some undefined behavior happening
+        
+        //Check if the user requested the main window to resize
+        if(m_pWindowData->bResizeRequested)
+        {
+            //Wait for the previous frame to finish
+            vkDeviceWaitIdle(m_device);
+        
+            //Destroy all swapchain objects that need to be manually destroyed
+            for (size_t i = 0; i < m_bootstrapObjects.swapchainData.swapchainImageViews.size(); ++i)
+            {
+                vkDestroyImageView(m_device, m_bootstrapObjects.swapchainData.swapchainImageViews[i],
+                    nullptr);
+            }
+            vkDestroySwapchainKHR(m_device, m_bootstrapObjects.swapchainData.swapchain, nullptr);
+        
+            //Create the swapchain once more
+            BootstrapCreateSwapchain();
+        
+            //Update the engine and the window that the window resize request has been dealt with
+            m_pWindowData->bResizeRequested = false;
         }
 
-        UpdateScene();
+        UpdateScene(updatedData);
 
         /*-----------------------------------------------------------------------------
         Wait for the fence to be signalled at the end of the previous frame, 
@@ -733,20 +755,20 @@ namespace BlitzenRendering
         currentFrame = (currentFrame +1) % BLITZEN_MAX_FRAMES_IN_FLIGHT;
     }
 
-    void VulkanRenderer::UpdateScene()
+    void VulkanRenderer::UpdateScene(VulkanUpdatedData& updatedData)
     {
         m_mainDrawContext.opaqueObjects.clear();
         m_nodeTable["Suzanne"].AddToDrawContext(glm::mat4(1.f), m_mainDrawContext);
 
         //Setup the view matrix
-        m_globalSceneData.viewMatrix = glm::translate(glm::vec3{ 0,0,-5 });
+        //m_globalSceneData.viewMatrix = updatedData.newViewMatrix;
 	    
         //Setup the projection matrix
 	    m_globalSceneData.projectionMatrix = glm::perspective(glm::radians(70.f), (float)m_pWindowData->windowWidth / 
         (float)m_pWindowData->windowHeight, 10000.f, 0.1f);
 
 	    //Invert the projection matrix so that it matches glm and objects are not drawn upside down
-	    m_globalSceneData.projectionMatrix[1][1] *= -1;
+        m_globalSceneData.projectionMatrix[1][1] *= -1;
 
 	    //Default lighting parameters
 	    m_globalSceneData.ambientColor = glm::vec4(.1f);
@@ -767,8 +789,11 @@ namespace BlitzenRendering
         DrawBackground(commandBuffer);
 
         //Before rendering geometry the draw extent needs to be set to the size of the window
-        m_drawExtent.width = m_pWindowData->windowWidth;
-        m_drawExtent.height = m_pWindowData->windowHeight;
+        //Before rendering geometry the draw extent needs to be set to the size of the window
+        m_drawExtent.width = std::min(static_cast<uint32_t>(m_pWindowData->windowWidth),
+            m_colorAttachmentImage.extent.width);
+        m_drawExtent.height = std::min(static_cast<uint32_t>(m_pWindowData->windowHeight),
+            m_colorAttachmentImage.extent.height);
 
         //Change the color attachment's layout so that it fits the next function's needs
         ChangeImageLayout(commandBuffer, m_colorAttachmentImage.image, VK_IMAGE_LAYOUT_GENERAL, 

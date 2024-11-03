@@ -7,11 +7,48 @@ namespace BlitzenEngine
         //The window is created first
         CreateWindow();
 
-        //Since the window ensures that glfw is initialized, events will now be set
-        InitEvents();
+        m_windowData.pMainController = &m_mainController;
+
+        //Setting up some default inputs
+        m_mainController.SetKeyPressFunction(GLFW_KEY_ESCAPE, GLFW_PRESS, [&]() {
+            m_windowData.bEngineShouldTerminate = true;
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, -1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, -1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, 1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, 1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(-1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(-1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_RELEASE, [&](){});
+        m_mainController.SetCursorFunctionPointer([&](float x, float y) {
+            m_mainCamera.MoveCamera(glm::vec3(0.f, 0.f, 0.f), x, y);
+        });
 
         //Initialize the renderer, only Vulkan is supported for now
         m_vulkan.Init(&m_windowData);
+
+        m_mainCamera.Init(&(m_vulkan.GetSceneData().viewMatrix), &m_deltaTime);
 
         LoadMeshAsset("BlitzenEngine/Assets/basicmesh.glb", &m_vulkan);
 
@@ -22,10 +59,23 @@ namespace BlitzenEngine
     {
         std::cout << "Blitzen Engine 0.Alpha Booting\n";
 
+        //Setting events here so that no undefined behavior during loading
+        InitEvents();
+
+        //Because loading might take time, total time is set here so that delta time does not cause undefined behavior
+        m_totalRunTime = static_cast<float>(glfwGetTime());
+
         while(!(m_windowData.bEngineShouldTerminate))
         {
+            float newRunTime = static_cast<float>(glfwGetTime());
+            m_deltaTime = newRunTime - m_totalRunTime;
+            m_totalRunTime = newRunTime;
+
             glfwPollEvents();
-            m_vulkan.DrawFrame();
+
+            BlitzenRendering::VulkanUpdatedData newData;
+            //newData.newViewMatrix = m_mainCamera.m_viewMatrix;
+            m_vulkan.DrawFrame(newData);
         }
     }
 
@@ -65,5 +115,14 @@ namespace BlitzenEngine
 
         //Setting the function that gets called when user input tells the window to close
         glfwSetWindowCloseCallback(m_windowData.pWindow, glfwWindowCloseCallback);
+
+        //Setting the function that gets called when user input asks for resize
+        glfwSetWindowSizeCallback(m_windowData.pWindow, glfwWindowSizeCallback);
+
+        //Setting the function that gets called when a user presses a key
+        glfwSetKeyCallback(m_windowData.pWindow, glfwKeyCallback);
+
+        glfwGetCursorPos(m_windowData.pWindow, &(m_windowData.currentCursorX), &(m_windowData.currentCursorY));
+        glfwSetCursorPosCallback(m_windowData.pWindow, glfwCursorCallback);
     }
 }

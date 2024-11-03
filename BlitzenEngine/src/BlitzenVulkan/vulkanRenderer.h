@@ -160,7 +160,7 @@ namespace BlitzenRendering
         commands that the engine needs and submits to a queue and presents to the 
         swapchain
         ----------------------------------------------------------------------------*/
-        void DrawFrame();
+        void DrawFrame(VulkanUpdatedData& updatedData);
 
         //The destructor will be explicit so that the main engine can destroy it at the correct time
         void CleanupResources();
@@ -204,7 +204,7 @@ namespace BlitzenRendering
 
 
         //Updates global scene data and adds the objects than need to be draw to the draw context
-        void UpdateScene();
+        void UpdateScene(VulkanUpdatedData& updatedData);
         /*-----------------------------------------------------------------------
         In draw frame, after a swapchain image has been acquired, 
         this is called so that all functions that record commands can be called
@@ -246,6 +246,9 @@ namespace BlitzenRendering
 
         //Keeps track of the object assets that vulkan will have to access while drawing
         std::vector<VulkanMeshAsset> m_assets;
+
+        //The scene data might need to be manipulated by objects outside of the renderer
+        inline GPUSceneData& GetSceneData() {return m_globalSceneData;}
     
     private:
 

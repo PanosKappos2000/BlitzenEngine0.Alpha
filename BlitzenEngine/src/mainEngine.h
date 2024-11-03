@@ -13,6 +13,8 @@
 
 #include "AssetLoading/assetLoading.h"
 
+#include "Game/camera.h"
+
 #define INITIAL_WINDOW_WIDTH        850
 #define INITIAL_WINDOW_HEIGHT       620
 
@@ -45,11 +47,20 @@ namespace BlitzenEngine
         void InitEvents();
 
     private:
+        
+        //Delta time holds the time elapsed between frames and uses glfwGetTime and m_totalRunTime to calculate it
+        float m_deltaTime;
+        float m_totalRunTime = 0;
 
         //Holds data about the window that glfw should access when an input callback gets triggered
         WindowData m_windowData;
 
+        //The controller is responsible for setting how the engine reacts to keyboard, mouse, controller etc inputs
+        Controller m_mainController;
+
         //Holds an instance of the class that will handle all Vulkan functionality
         BlitzenRendering::VulkanRenderer m_vulkan;
+
+        Camera m_mainCamera;
     };
 }

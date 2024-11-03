@@ -24,6 +24,10 @@ add_library(BlitzenEngine
         src/BlitzenVulkan/vulkanRenderData.cpp
         src/AssetLoading/assetLoading.cpp
         src/AssetLoading/assetLoading.h
+        src/Game/camera.h
+        src/Game/camera.cpp
+        src/Game/controller.cpp
+        src/Game/controller.h
         ExternalDependencies/fastgltf/src/fastgltf.cpp
         ExternalDependencies/fastgltf/src/base64.cpp
         ExternalDependencies/fastgltf/src/simdjson.cpp)

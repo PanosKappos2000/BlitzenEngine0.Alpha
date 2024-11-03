@@ -14,6 +14,11 @@
 
 namespace BlitzenRendering
 {
+    struct VulkanUpdatedData
+    {
+        glm::mat4 newViewMatrix;
+    };
+
     //This is the way the data that will be passed to each vertex is structured
     struct VulkanVertex
     {
@@ -114,7 +119,7 @@ namespace BlitzenRendering
     //Holds scene data that does not change per object but is global
     struct GPUSceneData
     {
-        glm::mat4 viewMatrix;
+        glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 0.f, -5.0f));
         glm::mat4 projectionMatrix;
         glm::vec4 ambientColor;
         glm::vec4 sunlightColor;
