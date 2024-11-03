@@ -246,6 +246,9 @@ namespace BlitzenRendering
 
         //Keeps track of the object assets that vulkan will have to access while drawing
         std::vector<VulkanMeshAsset> m_assets;
+
+        //The global scene data might need to be manipulated for some of the game logic
+        inline GPUSceneData& GetGlobalSceneData() {return m_globalSceneData;}
     
     private:
 
@@ -291,7 +294,8 @@ namespace BlitzenRendering
         GPUSceneData m_globalSceneData;
         VkDescriptorSetLayout m_globalSceneDataDescriptorSetLayout{VK_NULL_HANDLE};
 
-	VulkanGPUMeshBuffers m_meshBuffers;
+        //Holds the unified index and vertex buffer for all objects
+	    VulkanGPUMeshBuffers m_meshBuffers;
 
         DrawContext m_mainDrawContext;
         std::unordered_map<std::string, Node> m_nodeTable;

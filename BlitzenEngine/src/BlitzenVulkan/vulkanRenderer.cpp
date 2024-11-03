@@ -769,7 +769,7 @@ namespace BlitzenRendering
         m_nodeTable["Suzanne"].AddToDrawContext(glm::mat4(1.f), m_mainDrawContext);
 
         //Setup the view matrix
-        m_globalSceneData.viewMatrix = glm::translate(glm::vec3{ 0,0,-5 });
+        //m_globalSceneData.viewMatrix = glm::translate(glm::vec3{ 0,0,-5 });
 	    
         //Setup the projection matrix
 	    m_globalSceneData.projectionMatrix = glm::perspective(glm::radians(70.f), (float)m_pWindowData->windowWidth / 

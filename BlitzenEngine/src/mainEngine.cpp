@@ -7,12 +7,50 @@ namespace BlitzenEngine
         //The window is created first
         CreateWindow();
 
-        //Since the window ensures that glfw is initialized, events will now be set
-        InitEvents();
+        /*-----------------------------------------------------------------
+        The glfw callback functions will need to access the controller 
+        so that the appropriate function for each event can be called
+        -------------------------------------------------------------------*/
+        m_windowData.pController = &m_mainController;
+
+        //Setting up some default inputs
+        m_mainController.SetKeyPressFunction(GLFW_KEY_ESCAPE, GLFW_PRESS, [&]() {
+            m_windowData.bEngineShouldTerminate = true;
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, -1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, -1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_W, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, 1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(0.0f, 0.0f, 1.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_S, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(-1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(-1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_A, GLFW_RELEASE, [&](){});
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_PRESS, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_REPEAT, [&](){
+            m_mainCamera.MoveCamera(glm::vec3(1.0f, 0.0f, 0.0f), 0.f, 0.f);
+        });
+        m_mainController.SetKeyPressFunction(GLFW_KEY_D, GLFW_RELEASE, [&](){});
+        m_mainController.SetCursorFunctionPointer([&](float x, float y) {
+            m_mainCamera.MoveCamera(glm::vec3(0.f, 0.f, 0.f), x, y);
+        });
 
         //Initialize the renderer, only Vulkan is supported for now
         m_vulkan.Init(&m_windowData);
-	
     	/*---------------------------------------------------------------------------------------
     	Declaring two vectors, one for the vertex data and one for the index data
     	The LoadMeshAsset function will go through all the meshes that need to be loaded
@@ -25,14 +63,26 @@ namespace BlitzenEngine
     	m_vulkan.LoadMeshBuffers(vertices, indices);
 
         m_vulkan.InitPlaceholderData();
+
+        m_mainCamera.Init(&(m_vulkan.GetGlobalSceneData().viewMatrix), &m_deltaTime);
     }
 
     void MainEngine::Run()
     {
         std::cout << "Blitzen Engine 0.Alpha Booting\n";
 
+        //Events will be activated right before the main loop, so that no undefined behavior occurs during startup
+        InitEvents();
+
+        //Because the setup of the engine takes time, totalRunTime needs to be set before the loop to protect deltaTime from high values
+        m_totalRunTime = glfwGetTime();
+
         while(!(m_windowData.bEngineShouldTerminate))
         {
+            float newRunTime = static_cast<float>(glfwGetTime());
+            m_deltaTime = newRunTime - m_totalRunTime;
+            m_totalRunTime = newRunTime;
+
             glfwPollEvents();
             m_vulkan.DrawFrame();
         }
@@ -77,5 +127,11 @@ namespace BlitzenEngine
 
         //Setting the function that gets called when user input asks for resize
         glfwSetWindowSizeCallback(m_windowData.pWindow, glfwWindowSizeCallback);
+
+        glfwSetKeyCallback(m_windowData.pWindow, glfwKeyCallback);
+
+        //Setting the position of the cursor and its callback
+        glfwGetCursorPos(m_windowData.pWindow, &(m_windowData.currentCursorX), &(m_windowData.currentCursorY));
+        glfwSetCursorPosCallback(m_windowData.pWindow, glfwCursorCallback);
     }
 }
