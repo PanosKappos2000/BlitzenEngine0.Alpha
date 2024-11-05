@@ -38,7 +38,8 @@ void main()
     gl_Position = sceneData.projection * sceneData.view * PushConstants.matrix * vec4(currentVertex.pos, 1.0);
 
     //Send the necessary data to the fragment shader
-    outColor = currentVertex.color.xyz;
+    outNormal = (sceneData.projection * sceneData.view * vec4(currentVertex.normal, 0.f)).xyz;
+    outColor = currentVertex.color.xyz * materialData.colorFactors.xyz;
     outUvMap.x = currentVertex.uv_x;
     outUvMap.y = currentVertex.uv_y;
 }

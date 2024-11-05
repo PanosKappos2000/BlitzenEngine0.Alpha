@@ -50,9 +50,8 @@ namespace BlitzenEngine
 
         m_mainCamera.Init(&(m_vulkan.GetSceneData().viewMatrix), &m_deltaTime);
 
-        LoadMeshAsset("BlitzenEngine/Assets/basicmesh.glb", &m_vulkan);
-
-        m_vulkan.InitPlaceholderData();
+        m_vulkan.m_loadedScenes["structure"] = BlitzenRendering::LoadedGLTF();
+        LoadScene("BlitzenEngine/Assets/Structure.glb", &m_vulkan, m_vulkan.m_loadedScenes["structure"]);
     }
 
     void MainEngine::Run()
@@ -73,9 +72,7 @@ namespace BlitzenEngine
 
             glfwPollEvents();
 
-            BlitzenRendering::VulkanUpdatedData newData;
-            //newData.newViewMatrix = m_mainCamera.m_viewMatrix;
-            m_vulkan.DrawFrame(newData);
+            m_vulkan.DrawFrame();
         }
     }
 

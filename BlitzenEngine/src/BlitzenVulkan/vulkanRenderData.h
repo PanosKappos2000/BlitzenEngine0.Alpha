@@ -14,9 +14,30 @@
 
 namespace BlitzenRendering
 {
-    struct VulkanUpdatedData
+    class VulkanRenderer;
+
+    /*---------------------------------------------------------------------------------------------
+    This struct keeps track of all descriptor pools used to allocate descriptor sets. 
+    When the already existing descriptor pools are not sufficient for the descriptors, 
+    it allocates a new one and saves it so that more are available each frame
+    -----------------------------------------------------------------------------------------------*/
+    struct DescriptorAllocator
     {
-        glm::mat4 newViewMatrix;
+    public:
+        void Init(const VkDevice& device);
+
+        void AllocateDescriptorSet(const VkDevice& device, VkDescriptorSet& descriptorSetToAllocate,
+         VkDescriptorSetLayout& layout);
+
+        void ResetPools(const VkDevice& device);
+
+        void CleanupResources(const VkDevice& device);
+    private:
+        void CreateDescriptorPool(const VkDevice& device);
+        size_t GetDescriptorPoolIndex(const VkDevice& device);
+
+        std::vector<VkDescriptorPool> readyPools;
+        std::vector<VkDescriptorPool> fullPools;
     };
 
     //This is the way the data that will be passed to each vertex is structured
@@ -131,7 +152,7 @@ namespace BlitzenRendering
         //How lighting should affect normal textures
 	    glm::vec4 colorFactors;
         //How lighting should affect textures with special metallic properties
-	    glm::vec4 metal_rough_factors;
+	    glm::vec4 metalRoughFactors;
 	    //padding, as this will be a uniform buffer
 	    glm::vec4 extra[14];
 	};
@@ -204,7 +225,7 @@ namespace BlitzenRendering
     {
     public:
         Node* pParentNode;
-        std::vector<Node> m_children;
+        std::vector<Node*> m_children;
 
         glm::mat4 localTransform;
         glm::mat4 worldTransform;
@@ -217,6 +238,36 @@ namespace BlitzenRendering
         void UpdateTransform(const glm::mat4& parentMatrix);
 
         virtual void AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext) override;    
+    };
+
+    //When a gltf scene is loaded, this will be used to store the scene and draw all of it
+    struct LoadedGLTF : public IRenderable
+    {
+        std::unordered_map<std::string, VulkanMeshAsset> meshNodes;
+        std::unordered_map<std::string, Node> nodes;
+        std::unordered_map<std::string, VulkanAllocatedImage> textureImages;
+        std::unordered_map<std::string, MaterialInstance> materials;
+
+        /*
+        This vector will reference all the nodes that don't have a parent, 
+        so that the renderer can go through a Loaded GLTF struct in tree order
+        */  
+        std::vector<Node*> topNodes;
+
+        std::vector<VkSampler> textureSamplers;
+
+        DescriptorAllocator descriptorAllocator;
+
+        VulkanAllocatedBuffer materialDataBuffer;
+
+        VulkanRenderer* pVulkan;
+
+        inline ~LoadedGLTF() {ClearAll();}
+
+        void AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext) override;
+
+    private:
+        void ClearAll();
     };
 
     class MeshNode : public Node

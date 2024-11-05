@@ -58,43 +58,6 @@ namespace BlitzenRendering
         VkQueue presentQueue{VK_NULL_HANDLE};
     };
 
-    /*---------------------------------------------------------------------------------------------
-    This struct keeps track of all descriptor pools used to allocate descriptor sets. 
-    When the already existing descriptor pools are not sufficient for the descriptors, 
-    it allocates a new one and saves it so that more are available each frame
-    -----------------------------------------------------------------------------------------------*/
-    struct DescriptorAllocator
-    {
-    public:
-        void Init(const VkDevice& device);
-
-        void AllocateDescriptorSet(const VkDevice& device, VkDescriptorSet& descriptorSetToAllocate,
-         VkDescriptorSetLayout& layout);
-
-        void ResetPools(const VkDevice& device);
-
-        void CleanupResources(const VkDevice& device);
-    private:
-        void CreateDescriptorPool(const VkDevice& device);
-        size_t GetDescriptorPoolIndex(const VkDevice& device);
-
-        std::vector<VkDescriptorPool> readyPools;
-        std::vector<VkDescriptorPool> fullPools;
-    };
-
-    struct DescriptorWriter 
-    {
-        std::deque<VkDescriptorImageInfo> imageInfos;
-        std::deque<VkDescriptorBufferInfo> bufferInfos;
-        std::vector<VkWriteDescriptorSet> writes;
-
-        void WriteImage(int binding, VkImageView& image, VkSampler& sampler, VkImageLayout layout, VkDescriptorType type);
-        void WriteBuffer(int binding, VkBuffer& buffer, size_t size, size_t offset, VkDescriptorType type); 
-
-        void Clear();
-        void UpdateSet(const VkDevice& device, VkDescriptorSet& set);
-    };
-
 
     /*----------------------------------------------------------------------------------------------
     Holds the objects that each frame relies upond for commands and command synchronization
@@ -139,36 +102,50 @@ namespace BlitzenRendering
     class VulkanRenderer
     {
     public:
-        /*-------------------------------------------------------------------------
-        Since this is one of the biggest tools of the engine, it has an explicit
-        initialization function, so that the engine can call it at the right time
-        ----------------------------------------------------------------------------*/
+        
+        //Explicit constructor, so that the Engine can call it when other important tools have been initialized
         void Init(WindowData* pWindowData);
 
         //This is used for the beginning stages of this engine, so that tools that don't work yet don't slow it down
         void InitPlaceholderData();
 
+        void InitMeshNodes();
+
+        //Takes the vertices and indices of an object and writes them to a GPU only SSBO with pointer access
         void LoadMeshBuffers(VulkanGPUMeshBuffers& meshBuffers, std::vector<VulkanVertex>& vertices, 
         std::vector<uint32_t>& indices);
 
+        //Passes material values and resources to the descriptor set, so that objects with this material can be drawn
         void WriteMaterial(MaterialInstance& instance, VkDevice device, MaterialPass pass, 
         MaterialResources& resources);
 
-        /*---------------------------------------------------------------------------
-        This function is called when all engine objects are ready to be renderered.
-        It requests a swapchain image, records a command buffer for all the draw
-        commands that the engine needs and submits to a queue and presents to the 
-        swapchain
-        ----------------------------------------------------------------------------*/
-        void DrawFrame(VulkanUpdatedData& updatedData);
+        //Allocates an image to be used as a color attachment or depth attachment 
+        void AllocateImage(VulkanAllocatedImage& imageToAllocate, VkExtent3D imageExtent, VkFormat imageFormat, 
+        VkImageUsageFlags imageUsage, bool bMipmapped = false);
 
-        //The destructor will be explicit so that the main engine can destroy it at the correct time
+        //Allocates and image and copies data to it, for assets like textures
+        void AllocateImage(void* data, VulkanAllocatedImage& imageToAllocate, VkExtent3D imageExtent, VkFormat imageFormat, 
+        VkImageUsageFlags imageUsage, bool bMipmapped = false);
+
+        //Allocates a buffer using VMA
+        void AllocateBuffer(VulkanAllocatedBuffer& bufferToAllocate, VkDeviceSize bufferSize, 
+        VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
+
+
+        //This function is responsible for calling the right operation to draw all objects in a frame
+        void DrawFrame();
+
+        //Explicit destructor so that the engine can cleanup Vulkan at the right time
         void CleanupResources();
 
         //Setting the constructor to default and destroy copy operators
         VulkanRenderer();
         VulkanRenderer operator = (VulkanRenderer& vulkan) = delete;
     private:
+
+        /*-----------------------
+        Init helper functions
+        ------------------------*/
 
         //Uses VkBootstrap to create a VkInstance and returns the bootstrap instance handler for the next functions
         vkb::Instance BootstrapCreateInstance();
@@ -181,30 +158,19 @@ namespace BlitzenRendering
 
         void BootstrapCreateSwapchain();
 
-
-
         //Initalizes command buffers and sync objects in each frame tools struct
         void InitFrameTools();
 
-
-
-        //Allocates an image 
-        void AllocateImage(VulkanAllocatedImage& imageToAllocate, VkExtent3D imageExtent, VkFormat imageFormat, 
-        VkImageUsageFlags imageUsage, bool bMipmapped = false);
-
-
-
-        void AllocateBuffer(VulkanAllocatedBuffer& bufferToAllocate, VkDeviceSize bufferSize, 
-        VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
-
-
-
+        //Initalizes a basic, default material that will be used for objects that do not have materials
         void InitPlaceholderMaterial();
 
 
+        /*---------------------------
+        Draw loop helper functions
+        -----------------------------*/
 
         //Updates global scene data and adds the objects than need to be draw to the draw context
-        void UpdateScene(VulkanUpdatedData& updatedData);
+        void UpdateScene();
         /*-----------------------------------------------------------------------
         In draw frame, after a swapchain image has been acquired, 
         this is called so that all functions that record commands can be called
@@ -225,6 +191,9 @@ namespace BlitzenRendering
         VkImageLayout srcImageLayout, VkImageLayout dstImageLayout, VkExtent2D srcImageSize, VkExtent2D dstImageSize);
 
 
+        /*-----------------------
+        Cleanup helper functions
+        ------------------------*/
 
         /*---------------------------------------------------------------------------------------------
         Each of the functions below will be called by CleanupResources in the right order to destroy 
@@ -238,22 +207,33 @@ namespace BlitzenRendering
 
     public:
 
+        //Will be constantly called to interface with the GPU and create or destroy other Vulkan objects
+        VkDevice m_device{VK_NULL_HANDLE};
+
         //Used to build all graphics pipelines that might need to be bound by Vulkan each time a frame is drawn
         VulkanGraphicsPipelineBuilder m_graphicsPipelineBuilder;
 
-        //This will be used for each allocated descriptor set that needs to be updated
-        DescriptorWriter m_descriptorWriter;
-
         //Keeps track of the object assets that vulkan will have to access while drawing
         std::vector<VulkanMeshAsset> m_assets;
+
+        //Holds the mesh assets, textures, materials and nodes of a scene loaded from a gltf file
+        std::unordered_map<std::string, LoadedGLTF> m_loadedScenes;
+
+        //Holds placeholder material data for colors, textures and most importantly a universal descriptor layout
+        MaterialData m_placeholderMaterialData;
+
+        //Some placeholder/default data for textures, used while renderer implementations are not fully realized
+        VulkanAllocatedImage m_placeholderWhiteTextureImage;
+        VulkanAllocatedImage m_placeholderBlackTextureImage;
+        VulkanAllocatedImage m_placeholderGreyTextureImage;
+        VulkanAllocatedImage m_placeholderErrorTextureImage;
+        VkSampler m_placeholderLinearSampler;
+        VkSampler m_placeholderNearestSampler;
 
         //The scene data might need to be manipulated by objects outside of the renderer
         inline GPUSceneData& GetSceneData() {return m_globalSceneData;}
     
     private:
-
-        //Will be constantly called to interface with the GPU and create or destroy other Vulkan objects
-        VkDevice m_device{VK_NULL_HANDLE};
 
         VmaAllocator m_allocator{VK_NULL_HANDLE};
 
@@ -289,7 +269,6 @@ namespace BlitzenRendering
         VkPipelineLayout m_placeholderPipelineLayout{VK_NULL_HANDLE};
         VulkanGPUMeshBuffers m_placeholderMesh;
         MaterialInstance m_placeholderMaterial;
-        MaterialData m_placeholderMaterialData;
 
         GPUSceneData m_globalSceneData;
         VkDescriptorSetLayout m_globalSceneDataDescriptorSetLayout{VK_NULL_HANDLE};

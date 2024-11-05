@@ -5,9 +5,9 @@ namespace BlitzenRendering
     void Node::UpdateTransform(const glm::mat4& parentTransform)
     {
         worldTransform = parentTransform * localTransform;
-        for(Node& child : m_children)
+        for(Node* child : m_children)
         {
-            child.UpdateTransform(worldTransform);
+            child->UpdateTransform(worldTransform);
         }
     }
 
@@ -17,9 +17,9 @@ namespace BlitzenRendering
         {
             case NodeType::NT_Undefined:
             {
-                for(Node& child : m_children)
+                for(Node* child : m_children)
                 {
-                    child.AddToDrawContext(topMatrix, drawContext);
+                    child->AddToDrawContext(topMatrix, drawContext);
                 }
                 break;
             }
@@ -42,6 +42,19 @@ namespace BlitzenRendering
 
             }
         }
+    }
+
+    void LoadedGLTF::AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext)
+    {
+        for(Node* node : topNodes)
+        {
+            node->AddToDrawContext(topMatrix, drawContext);
+        }
+    }
+
+    void LoadedGLTF::ClearAll()
+    {
+        
     }
 
     void MeshNode::AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext)

@@ -21,7 +21,7 @@ namespace BlitzenEngine
         float pitch = 0.f;
         float yaw = 0.f;
 
-        float m_speed = 5.0f;
+        float m_speed = 25.0f;
         float m_sensitivity = 10.f;
     };
 }
