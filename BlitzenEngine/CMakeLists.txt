@@ -46,7 +46,8 @@ target_include_directories(BlitzenEngine PUBLIC
                             "${PROJECT_SOURCE_DIR}/ExternalDependencies/GLFW/include"
                             "${PROJECT_SOURCE_DIR}/ExternalDependencies/Vulkan/include"
                             "${PROJECT_SOURCE_DIR}/ExternalDependencies/VkBootstrap"
-                            "${PROJECT_SOURCE_DIR}/ExternalDependencies/fastgltf/include")
+                            "${PROJECT_SOURCE_DIR}/ExternalDependencies/fastgltf/include"
+                            "${PROJECT_SOURCE_DIR}/ExternalDependencies/STBImage")
 
 
 #Copy assets folder

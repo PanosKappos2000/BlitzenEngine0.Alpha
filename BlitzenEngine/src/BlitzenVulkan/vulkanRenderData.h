@@ -14,6 +14,30 @@
 
 namespace BlitzenRendering
 {
+    //Forward declaration of the main renderer class to avoid circular dependency
+    class VulkanRenderer;
+
+    /*---------------------------------------------------------------------------------------------
+    This struct keeps track of all descriptor pools used to allocate descriptor sets. 
+    When the already existing descriptor pools are not sufficient for the descriptors, 
+    it allocates a new one and saves it so that more are available each frame
+    -----------------------------------------------------------------------------------------------*/
+    struct DescriptorAllocator
+    {
+        glm::mat4 newViewMatrix;
+    public:
+        void Init(const VkDevice& device);
+        void AllocateDescriptorSet(const VkDevice& device, VkDescriptorSet& descriptorSetToAllocate,
+         VkDescriptorSetLayout& layout);
+        void ResetPools(const VkDevice& device);
+        void CleanupResources(const VkDevice& device);
+    private:
+        void CreateDescriptorPool(const VkDevice& device);
+        size_t GetDescriptorPoolIndex(const VkDevice& device);
+        std::vector<VkDescriptorPool> readyPools;
+        std::vector<VkDescriptorPool> fullPools;
+    };
+
     //This is the way the data that will be passed to each vertex is structured
     struct VulkanVertex
     {
@@ -97,7 +121,6 @@ namespace BlitzenRendering
     {
         uint32_t indexCount;
         uint32_t firstIndex;
-        uint32_t vertexBufferOffset;
 
         MaterialInstance* pMaterial;
     };
@@ -126,7 +149,7 @@ namespace BlitzenRendering
         //How lighting should affect normal textures
 	    glm::vec4 colorFactors;
         //How lighting should affect textures with special metallic properties
-	    glm::vec4 metal_rough_factors;
+	    glm::vec4 metalRoughFactors;
 	    //padding, as this will be a uniform buffer
 	    glm::vec4 extra[14];
 	};
@@ -141,7 +164,9 @@ namespace BlitzenRendering
 	    VulkanAllocatedImage metalRoughImage;
         //Sampler for the above texture
 	    VkSampler metalRoughSampler;
+        //The data buffer where all uniform buffers descriptor will be written
 	    VkBuffer dataBuffer;
+        //The offset for this specific resource
 	    uint32_t dataBufferOffset;
 	};
 
@@ -195,7 +220,7 @@ namespace BlitzenRendering
     {
     public:
         Node* pParentNode;
-        std::vector<Node> m_children;
+        std::vector<Node*> m_children;
 
         glm::mat4 localTransform;
         glm::mat4 worldTransform;
@@ -208,6 +233,30 @@ namespace BlitzenRendering
         void UpdateTransform(const glm::mat4& parentMatrix);
 
         virtual void AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext) override;    
+    };
+
+    class LoadedGLTFScene : public IRenderable
+    {
+    public:
+        std::unordered_map<std::string, VulkanMeshAsset> m_meshAssets;
+        std::unordered_map<std::string, Node> m_nodes;
+        std::unordered_map<std::string, MaterialInstance> m_materials;
+        std::unordered_map<std::string, VulkanAllocatedImage> m_textures;
+
+        //Pointers to all the parent nodes that have no children
+        std::vector<Node*> m_pureParentNodes;
+
+        std::vector<VkSampler> m_textureSamplers;
+
+        DescriptorAllocator m_descriptorAllocator;
+
+        VulkanAllocatedBuffer materialDataBuffer;
+
+        VulkanRenderer* m_pRenderer;
+
+        void AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext) override;
+
+        void ClearAll();
     };
 
     class MeshNode : public Node

@@ -12,8 +12,15 @@ namespace BlitzenEngine
 
     void Camera::MoveCamera(const glm::vec3& velocity, float yawMovement, float pitchMovement)
     {
-        yaw += (yawMovement * m_sensitivity * (*m_pDeltaTime)) /100.f;
-        pitch -= (pitchMovement * m_sensitivity * (*m_pDeltaTime)) / 100.f;
+        /*
+        Since the cursor is active inside and outside the window,
+        the controller might pass undesirable values.
+        These if statements guard against that
+        */
+        if(yawMovement < 100.f && yawMovement > -100.f)
+            yaw += (yawMovement * m_sensitivity * (*m_pDeltaTime)) /100.f;
+        if(pitchMovement < 100.f && pitchMovement > -100.0f)
+            pitch -= (pitchMovement * m_sensitivity * (*m_pDeltaTime)) / 100.f;
 
         glm::quat pitchRotation = glm::angleAxis(pitch, glm::vec3(1.f, 0.f, 0.f));
         glm::quat yawRotation = glm::angleAxis(yaw, glm::vec3(0.f, -1.f, 0.f));

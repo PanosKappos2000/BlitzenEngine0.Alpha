@@ -51,18 +51,24 @@ namespace BlitzenEngine
 
         //Initialize the renderer, only Vulkan is supported for now
         m_vulkan.Init(&m_windowData);
-    	/*---------------------------------------------------------------------------------------
-    	Declaring two vectors, one for the vertex data and one for the index data
-    	The LoadMeshAsset function will go through all the meshes that need to be loaded
-    	It will the indices and vertices and give the necessary data to acces them to the objects
-    	Then vulkan will allocate two big buffers one for the vertices and one for the indices
-    	-----------------------------------------------------------------------------------------*/
+    	
+        /*
+        Loading all the assets needed for the world and saving their indices and vertices to placeholder arrays to be passed to LoadMeshBuffers
+        At some point every single resource (textures, materials etc.) will be loaded in a single buffer like the mesh buffers, 
+        so that the renderer's design can be fully bindless
+        */
     	std::vector<BlitzenRendering::VulkanVertex> vertices;
     	std::vector<uint32_t> indices;
-        LoadMeshAsset("BlitzenEngine/Assets/basicmesh.glb", vertices, indices, &m_vulkan);
+        m_vulkan.m_loadedScenes["structure"];
+        LoadScene("BlitzenEngine/Assets/structure.glb", vertices, indices, m_vulkan.m_loadedScenes["structure"], &m_vulkan);
+        /*
+        Once all the scenes are loaded the index and vertex buffer can both be passed to the GPU.
+        Since the engine uses bindless design, it is important that this happens after everything has been loaded since every object
+        shares the same vertex and index buffer
+        */
     	m_vulkan.LoadMeshBuffers(vertices, indices);
 
-        m_vulkan.InitPlaceholderData();
+        m_vulkan.InitMeshNodes();
 
         m_mainCamera.Init(&(m_vulkan.GetGlobalSceneData().viewMatrix), &m_deltaTime);
     }

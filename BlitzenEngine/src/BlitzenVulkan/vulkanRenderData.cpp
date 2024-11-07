@@ -1,13 +1,14 @@
 #include "vulkanRenderData.h"
+#include "VulkanRenderer.h"
 
 namespace BlitzenRendering
 {
     void Node::UpdateTransform(const glm::mat4& parentTransform)
     {
         worldTransform = parentTransform * localTransform;
-        for(Node& child : m_children)
+        for(Node* child : m_children)
         {
-            child.UpdateTransform(worldTransform);
+            child->UpdateTransform(worldTransform);
         }
     }
 
@@ -17,9 +18,9 @@ namespace BlitzenRendering
         {
             case NodeType::NT_Undefined:
             {
-                for(Node& child : m_children)
+                for(Node* child : m_children)
                 {
-                    child.AddToDrawContext(topMatrix, drawContext);
+                    child->AddToDrawContext(topMatrix, drawContext);
                 }
                 break;
             }
@@ -35,12 +36,32 @@ namespace BlitzenRendering
                     newObject.indexCount = surface.indexCount;
                     newObject.pMaterial = surface.pMaterial;
                     newObject.transform = nodeMatrix;
-                    newObject.vertexBufferOffset = surface.vertexBufferOffset;
                 }
                 break;
 
             }
         }
+    }
+
+    void LoadedGLTFScene::AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext)
+    {
+        for(Node* node : m_pureParentNodes)
+        {
+            node->AddToDrawContext(topMatrix, drawContext);
+        }
+    }
+    void LoadedGLTFScene::ClearAll()
+    {
+        materialDataBuffer.CleanupResources(m_pRenderer->m_device, m_pRenderer->m_allocator);
+
+        for (auto& [key, value] : m_textures) {
+        
+        if (value.image == m_pRenderer->m_placeholderErrorTextureImage.image) {
+            //dont destroy the default images
+            continue;
+        }
+        value.CleanupResources(m_pRenderer->m_device, m_pRenderer->m_allocator);
+    }
     }
 
     void MeshNode::AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext)
@@ -55,7 +76,6 @@ namespace BlitzenRendering
             newObject.indexCount = surface.indexCount;
             newObject.pMaterial = surface.pMaterial;
             newObject.transform = nodeMatrix;
-            newObject.vertexBufferOffset = surface.vertexBufferOffset;
         }
 
         Node::AddToDrawContext(topMatrix, drawContext);

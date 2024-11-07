@@ -48,16 +48,55 @@ namespace BlitzenRendering
         //Allocate the depth stencil attachment
         AllocateImage(m_depthAttachmentImage, m_colorAttachmentImage.extent, VK_FORMAT_D32_SFLOAT, 
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-    }
 
-    void VulkanRenderer::InitPlaceholderData()
-    {
         //Initialize the graphics pipeline builder and build a basic pipeline to draw the triangle
         m_graphicsPipelineBuilder.Init(&m_device);
 
         InitPlaceholderMaterial();
         m_placeholderMaterial.pPipeline = &(m_placeholderMaterialData.opaquePipeline);
 
+        InitPlaceholderData();
+    }
+
+    void VulkanRenderer::InitPlaceholderData()
+    {
+        /*
+        Setting some default textures to use while texturing is not fully realized
+        */
+        uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
+        AllocateImage(reinterpret_cast<void*>(&white), m_placeholderWhiteTextureImage, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+        uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
+        AllocateImage(reinterpret_cast<void*>(&grey), m_placeholderGreyTextureImage, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, 
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+        uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+        AllocateImage(reinterpret_cast<void*>(&black), m_placeholderBlackTextureImage, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, 
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+        uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+	    std::array<uint32_t, 16 *16 > pixels; 
+	    for (int x = 0; x < 16; x++) 
+        {
+	    	for (int y = 0; y < 16; y++) 
+            {
+	    		pixels[y*16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+	    	}
+	    }
+        AllocateImage(reinterpret_cast<void*>(pixels.data()), m_placeholderErrorTextureImage, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, 
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+        VkSamplerCreateInfo nearestSamplerInfo{};
+        nearestSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        nearestSamplerInfo.magFilter = VK_FILTER_NEAREST;
+        nearestSamplerInfo.minFilter = VK_FILTER_NEAREST;
+        vkCreateSampler(m_device, &nearestSamplerInfo, nullptr, &m_placeholderNearestSampler);
+        VkSamplerCreateInfo linearSamplerInfo{};
+        linearSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        linearSamplerInfo.magFilter = VK_FILTER_LINEAR;
+        linearSamplerInfo.minFilter = VK_FILTER_LINEAR;
+        vkCreateSampler(m_device, &linearSamplerInfo, nullptr, &m_placeholderLinearSampler);
+    }
+
+    void VulkanRenderer::InitMeshNodes()
+    {
         for(size_t i = 0; i < m_assets.size(); ++i)
         {
             //Create a new mesh node
@@ -74,9 +113,7 @@ namespace BlitzenRendering
             for(GeoSurface& surface : newNode.m_asset->geoSurfaces)
             {
                 surface.pMaterial = &m_placeholderMaterial;
-            }
-
-            
+            }   
         }
     }
 
@@ -289,7 +326,20 @@ namespace BlitzenRendering
 
         //Create the Vulkan SDK vkImageCreateInfo object with the parameters given
         VkImageCreateInfo imageToAllocateInfo{};
-        VulkanSDKobjects::ImageCreateInfoInit(imageToAllocateInfo, imageExtent, imageFormat, imageUsage);
+        imageToAllocateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        //All images used will have optimal tiling, allowing the gpu to shuffle data for faster excecution
+        //If support for mobile is ever added, this will have to be adjusted and not hardcoded in
+        imageToAllocateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageToAllocateInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageToAllocateInfo.arrayLayers = 1;
+        //No MSAA for now, but will probablt use it at some point
+        imageToAllocateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageToAllocateInfo.extent = imageExtent;
+        imageToAllocateInfo.format = imageFormat;
+        imageToAllocateInfo.usage = imageUsage;
+        //Mip levels depends on if the image will use mip maps or not
+        imageToAllocateInfo.mipLevels = (bMipmapped) ? static_cast<uint32_t>(
+            std::floor(std::log2(std::max(imageExtent.width, imageExtent.height)))) + 1 : 1;
 
         //Create the allocation info for vma 
         VmaAllocationCreateInfo imageAllocationInfo{};
@@ -300,16 +350,75 @@ namespace BlitzenRendering
         vmaCreateImage(m_allocator, &imageToAllocateInfo, &imageAllocationInfo, &(imageToAllocate.image), 
         &(imageToAllocate.allocation), nullptr);
 
-        //The aspect flags that will be used for the image view depend on if the image is a depth attahcment or not
+        VkImageViewCreateInfo imageViewInfo{};
+        imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewInfo.image = imageToAllocate.image;
+        imageViewInfo.format = imageFormat;
+        imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        //Only 2 types of aspects will be accessed by the subresource range for now, color or depth aspect
         VkImageAspectFlags imageAspect{};
         (imageFormat == VK_FORMAT_D32_SFLOAT) ? imageAspect = VK_IMAGE_ASPECT_DEPTH_BIT : imageAspect = 
         VK_IMAGE_ASPECT_COLOR_BIT;
-        VkImageViewCreateInfo imageViewInfo{};
-        VulkanSDKobjects::ImageViewCreateInfoInit(imageViewInfo, imageToAllocate.image, imageAspect, imageFormat);
+        //For now the only important part of the subresource range is the aspect mask, everything else will be hardcoded
+        VkImageSubresourceRange imageSubresourceRange{};
+        imageSubresourceRange.aspectMask = imageAspect;
+	    imageSubresourceRange.baseMipLevel = 0;
+	    imageSubresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	    imageSubresourceRange.baseArrayLayer = 0;
+	    imageSubresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+        imageViewInfo.subresourceRange = imageSubresourceRange;
 
         //Create the image view
         vkCreateImageView(m_device, &imageViewInfo, nullptr, &(imageToAllocate.imageView));
     }
+
+    void VulkanRenderer::AllocateImage(void* data, VulkanAllocatedImage& imageToAllocate, VkExtent3D imageExtent, 
+    VkFormat imageFormat, VkImageUsageFlags imageUsage, bool bMipmapped /* =false */)
+    {
+        //Create a buffer to hold the image resources
+        size_t dataSize = imageExtent.width * imageExtent.height * imageExtent.depth * 4;
+        VulkanAllocatedBuffer stagingBuffer;
+        AllocateBuffer(stagingBuffer, dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+        //Copy the resource data to the temporary buffer
+        memcpy(stagingBuffer.allocationInfo.pMappedData, data, dataSize);
+
+        //Allocate the image with the original version of the function (no resource data)
+        AllocateImage(imageToAllocate, imageExtent, imageFormat, imageUsage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | 
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT, bMipmapped);
+
+        //Start recording commands for buffer to image copy and image layout transition
+        m_instantSubmit.StartRecording();
+
+        //Change the image layout so that it accepts data transfer
+        ChangeImageLayout(m_instantSubmit.commandBuffer, imageToAllocate.image, VK_IMAGE_LAYOUT_UNDEFINED, 
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        //Hardcode aspects of the buffer copy
+        VkBufferImageCopy copyRegion{};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.imageExtent = imageExtent;
+        //Specify the subresource range
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+
+        //Copy the data to the image
+        vkCmdCopyBufferToImage(m_instantSubmit.commandBuffer, stagingBuffer.buffer, imageToAllocate.image, 
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+        //Change the layout so that the image is used optimally during the draw loop
+        ChangeImageLayout(m_instantSubmit.commandBuffer, imageToAllocate.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        //Submit the commands
+        m_instantSubmit.EndRecordingAndSubmit();
+        stagingBuffer.CleanupResources(m_device, m_allocator);
+    }
+
 
 
 
@@ -522,15 +631,43 @@ namespace BlitzenRendering
             instance.pPipeline = &(m_placeholderMaterialData.transparentPipeline);
         }
 
-        m_descriptorWriter.Clear();
-        m_descriptorWriter.WriteBuffer(0, resources.dataBuffer, 
-        sizeof(MaterialConstants), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        m_descriptorWriter.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-        m_descriptorWriter.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
-        m_descriptorWriter.UpdateSet(m_device, instance.descriptorSet);
+        //Pass the info for the uniform buffer that will hold the data for all the materials
+        VkDescriptorBufferInfo materialDataBufferInfo{};
+        materialDataBufferInfo.buffer = resources.dataBuffer;
+        materialDataBufferInfo.offset = resources.dataBufferOffset;
+        materialDataBufferInfo.range = sizeof(MaterialConstants);
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = instance.descriptorSet;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].pBufferInfo = &materialDataBufferInfo;
+
+        VkDescriptorImageInfo baseColorImageInfo{};
+        baseColorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        baseColorImageInfo.imageView = resources.colorImage.imageView;
+        baseColorImageInfo.sampler = resources.colorSampler;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = instance.descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].pImageInfo = &baseColorImageInfo;
+
+        VkDescriptorImageInfo metalRoughImageInfo{};
+        metalRoughImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        metalRoughImageInfo.imageView = resources.metalRoughImage.imageView;
+        metalRoughImageInfo.sampler = resources.metalRoughSampler;
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = instance.descriptorSet;
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[2].pImageInfo = &metalRoughImageInfo;
+
+        vkUpdateDescriptorSets(m_device, 3, descriptorWrites.data(), 0, nullptr);
     }
 
 
@@ -622,61 +759,6 @@ namespace BlitzenRendering
         fullPools.clear();
     }
 
-    void DescriptorWriter::WriteBuffer(int binding, VkBuffer& buffer, size_t size, size_t offset, VkDescriptorType type)
-    {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = buffer;
-        bufferInfo.offset = offset;
-        bufferInfo.range = size;
-        VkDescriptorBufferInfo& info = bufferInfos.emplace_back(bufferInfo);
-
-	    VkWriteDescriptorSet write{};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	    write.dstBinding = binding;
-	    write.dstSet = VK_NULL_HANDLE; //left empty for now, will be written on update descriptors
-	    write.descriptorCount = 1;
-	    write.descriptorType = type;
-	    write.pBufferInfo = &info;
-
-	    writes.push_back(write);
-    }
-
-    void DescriptorWriter::WriteImage(int binding, VkImageView& image, VkSampler& sampler, VkImageLayout layout, 
-    VkDescriptorType type)
-    {
-        VkDescriptorImageInfo imageInfo{};
-	    imageInfo.sampler = sampler,
-	    imageInfo.imageView = image,
-	    imageInfo.imageLayout = layout;
-        VkDescriptorImageInfo& info = imageInfos.emplace_back(imageInfo);
-
-	    VkWriteDescriptorSet write{};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	    write.dstBinding = binding;
-	    write.dstSet = VK_NULL_HANDLE; //left empty for now, will be written on update descriptors
-	    write.descriptorCount = 1;
-	    write.descriptorType = type;
-	    write.pImageInfo = &info;
-
-	    writes.push_back(write);
-    }
-
-    void DescriptorWriter::Clear()
-    {
-        imageInfos.clear();
-        writes.clear();
-        bufferInfos.clear();
-    }
-
-    void DescriptorWriter::UpdateSet(const VkDevice& device, VkDescriptorSet& set)
-    {
-        for(size_t i = 0; i < writes.size(); ++i)
-        {
-            writes[i].dstSet = set;
-        }
-        vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-    }
-
 
 
 
@@ -759,17 +841,7 @@ namespace BlitzenRendering
     {
         m_mainDrawContext.opaqueObjects.clear();
 
-        for (int x = -3; x < 3; ++x) 
-        {
-		    glm::mat4 scale = glm::scale(glm::vec3{0.2});
-		    glm::mat4 translation =  glm::translate(glm::vec3{x, 1, -2.0f});
-		    m_nodeTable["Sphere"].AddToDrawContext(translation * scale, m_mainDrawContext);
-	    }
-
-        m_nodeTable["Suzanne"].AddToDrawContext(glm::mat4(1.f), m_mainDrawContext);
-
-        //Setup the view matrix
-        //m_globalSceneData.viewMatrix = glm::translate(glm::vec3{ 0,0,-5 });
+        m_loadedScenes["structure"].AddToDrawContext(glm::mat4(1.f), m_mainDrawContext);
 	    
         //Setup the projection matrix
 	    m_globalSceneData.projectionMatrix = glm::perspective(glm::radians(70.f), (float)m_pWindowData->windowWidth / 
@@ -783,6 +855,7 @@ namespace BlitzenRendering
 	    m_globalSceneData.sunlightColor = glm::vec4(1.f);
 	    m_globalSceneData.sunlightDirection = glm::vec4(0,1,0.5,1.f);
 
+        //Give the address of the shared vertex buffer to the global scene data
         m_globalSceneData.vertexBufferAddress = m_meshBuffers.vertexBufferAddress;
     }
 
@@ -917,6 +990,9 @@ namespace BlitzenRendering
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_mainDrawContext.opaqueObjects[i].pMaterial->pPipeline->graphicsPipeline);
 
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_mainDrawContext.opaqueObjects[i].pMaterial->
+            pPipeline->pipelineLayout, 1, 1, &(m_mainDrawContext.opaqueObjects[i].pMaterial->descriptorSet), 0, nullptr);
+
             GPUPushConstant pushConstants;
             pushConstants.worldMatrix = m_mainDrawContext.opaqueObjects[i].transform;
             vkCmdPushConstants(commandBuffer, m_mainDrawContext.opaqueObjects[i].pMaterial->pPipeline->pipelineLayout, 
@@ -1003,7 +1079,18 @@ namespace BlitzenRendering
     {
         vkDeviceWaitIdle(m_device);
 
+        m_loadedScenes["structure"].ClearAll();
+
         m_meshBuffers.CleanupResources(m_device, m_allocator);
+
+        m_placeholderBlackTextureImage.CleanupResources(m_device, m_allocator);
+        m_placeholderGreyTextureImage.CleanupResources(m_device, m_allocator);
+        m_placeholderWhiteTextureImage.CleanupResources(m_device, m_allocator);
+        m_placeholderErrorTextureImage.CleanupResources(m_device, m_allocator);
+        vkDestroySampler(m_device, m_placeholderLinearSampler, nullptr);
+        vkDestroySampler(m_device, m_placeholderNearestSampler, nullptr);
+        
+        vkDestroyDescriptorSetLayout(m_device, m_globalSceneDataDescriptorSetLayout, nullptr);
 
         m_placeholderMaterialData.CleanupResources(m_device);
         vkDestroyPipeline(m_device, m_placeholderPipeline, nullptr);
