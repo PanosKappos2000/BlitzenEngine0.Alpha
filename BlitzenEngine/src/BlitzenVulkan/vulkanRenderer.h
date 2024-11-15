@@ -41,7 +41,11 @@ namespace BlitzenRendering
     {
         VkInstance vulkanInstance{VK_NULL_HANDLE};
         //This should only be enabled on debug mode, I will add that functionality later
-        const bool bEnableValidationLayers = true;
+        #ifndef NDEBUG
+            const bool bEnableValidationLayers = true;
+        #else
+            const bool bEnableValidationLayers = false; 
+        #endif
         VkDebugUtilsMessengerEXT debugMessenger;
         VkPhysicalDevice chosenGPU;
         VkSurfaceKHR windowSurface;

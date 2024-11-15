@@ -14,7 +14,8 @@ namespace BlitzenRendering
 
     void Node::AddToDrawContext(const glm::mat4& topMatrix, DrawContext& drawContext)
     {
-        switch(type)
+        //This code worked but it was wrong, I am keeping it to see what the proper way to do it fixes
+        /*switch(type)
         {
             case NodeType::NT_Undefined:
             {
@@ -40,6 +41,26 @@ namespace BlitzenRendering
                 break;
 
             }
+        }*/
+
+        if(type == NodeType::NT_MeshNode)
+        {
+             glm::mat4 nodeMatrix = topMatrix * worldTransform;
+    
+             for(GeoSurface& surface : m_asset->geoSurfaces )
+             {
+                 drawContext.opaqueObjects.push_back(VulkanRenderObject());
+                 VulkanRenderObject& newObject = drawContext.opaqueObjects.back();
+                 newObject.firstIndex = surface.firstIndex;
+                 newObject.indexCount = surface.indexCount;
+                 newObject.pMaterial = surface.pMaterial;
+                 newObject.transform = nodeMatrix;
+             }
+        }
+    
+        for(Node* child : m_children)
+        {
+            child->AddToDrawContext(topMatrix, drawContext);
         }
     }
 

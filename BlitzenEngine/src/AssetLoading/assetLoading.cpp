@@ -120,17 +120,39 @@ namespace BlitzenEngine
         //Loading textures, only the renderer's default for now
         for(fastgltf::Image image : gltf.images)
         {
-            scene.m_textures[image.name.c_str()] = BlitzenRendering::VulkanAllocatedImage();
-            LoadImage(scene.m_textures[image.name.c_str()], pVulkan, gltf, image);
-            if(scene.m_textures[image.name.c_str()].image != VK_NULL_HANDLE)
+            if(image.name != "")
             {
-                textureImages.push_back(&(scene.m_textures[image.name.c_str()]));
+                scene.m_textures[image.name.c_str()] = BlitzenRendering::VulkanAllocatedImage();
+                LoadImage(scene.m_textures[image.name.c_str()], pVulkan, gltf, image);
+                if (scene.m_textures[image.name.c_str()].image != VK_NULL_HANDLE)
+                {
+                    textureImages.push_back(&(scene.m_textures[image.name.c_str()]));
+                }
+                else
+                {
+                    scene.m_textures[image.name.c_str()].CleanupResources(pVulkan->m_device, pVulkan->m_allocator);
+                    scene.m_textures.erase(image.name.c_str());
+                    textureImages.push_back(&(pVulkan->m_placeholderErrorTextureImage));
+                }
             }
             else
             {
-                scene.m_textures.erase(image.name.c_str());
-                textureImages.push_back(&(pVulkan->m_placeholderErrorTextureImage));
+                //Because some dirtbags don't name their textures, I have to do this crap
+                std::string makeshiftName = std::to_string(static_cast<uint32_t>(textureImages.size()));
+                scene.m_textures[makeshiftName] = BlitzenRendering::VulkanAllocatedImage();
+                LoadImage(scene.m_textures[makeshiftName], pVulkan, gltf, image);
+                if (scene.m_textures[makeshiftName].image != VK_NULL_HANDLE)
+                {
+                    textureImages.push_back(&(scene.m_textures[makeshiftName]));
+                }
+                else
+                {
+                    scene.m_textures[makeshiftName].CleanupResources(pVulkan->m_device, pVulkan->m_allocator);
+                    scene.m_textures.erase(makeshiftName);
+                    textureImages.push_back(&(pVulkan->m_placeholderErrorTextureImage));
+                }
             }
+            
         }
 
         //Allocate a buffer for material constants and resource and retrieve a pointer to its allocation
@@ -355,7 +377,7 @@ namespace BlitzenEngine
         int width; 
         int height;
         int nrChannels;
-    
+
         std::visit(
             fastgltf::visitor {
                 [](auto& arg) {},
@@ -363,7 +385,7 @@ namespace BlitzenEngine
                     assert(filePath.fileByteOffset == 0); // We don't support offsets with stbi.
                     assert(filePath.uri.isLocalPath()); // We're only capable of loading
                                                         // local files.
-    
+
                     const std::string path(filePath.uri.path().begin(),
                         filePath.uri.path().end()); // Thanks C++.
                     unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 4);
@@ -372,9 +394,9 @@ namespace BlitzenEngine
                         imagesize.width = width;
                         imagesize.height = height;
                         imagesize.depth = 1;
-    
+
                         pVulkan->AllocateImage(data, imageToLoad, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false);
-    
+
                         stbi_image_free(data);
                     }
                 },
@@ -386,16 +408,16 @@ namespace BlitzenEngine
                         imagesize.width = width;
                         imagesize.height = height;
                         imagesize.depth = 1;
-    
+
                         pVulkan->AllocateImage(data, imageToLoad, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
-    
+
                         stbi_image_free(data);
                     }
                 },
                 [&](fastgltf::sources::BufferView& view) {
                     auto& bufferView = gltfAsset.bufferViews[view.bufferViewIndex];
                     auto& buffer = gltfAsset.buffers[bufferView.bufferIndex];
-    
+
                     std::visit(fastgltf::visitor { // We only care about VectorWithMime here, because we
                                                    // specify LoadExternalBuffers, meaning all buffers
                                                    // are already loaded into a vector.
@@ -409,10 +431,10 @@ namespace BlitzenEngine
                                            imagesize.width = width;
                                            imagesize.height = height;
                                            imagesize.depth = 1;
-    
+
                                            pVulkan->AllocateImage(data, imageToLoad, imagesize, VK_FORMAT_R8G8B8A8_UNORM,
                                                VK_IMAGE_USAGE_SAMPLED_BIT,false);
-    
+
                                            stbi_image_free(data);
                                        }
                                    } },
